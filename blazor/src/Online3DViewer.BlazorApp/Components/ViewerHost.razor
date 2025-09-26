@@ -1,0 +1,84 @@
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using Online3DViewer.EngineInterop
+@implements IAsyncDisposable
+
+<div id="@_containerId" class="viewer-host @CssClass" style="@Style"></div>
+
+@code {
+    private readonly string _containerId = $"ov-viewer-{Guid.NewGuid():N}";
+    private ViewerHandle? _handle;
+    private CancellationTokenSource? _cts;
+
+    [Inject]
+    private ViewerInteropService ViewerService { get; set; } = default!;
+
+    [Parameter]
+    public IEnumerable<string>? InitialModelUrls { get; set; }
+
+    [Parameter]
+    public string Theme { get; set; } = "dark";
+
+    [Parameter]
+    public (int Width, int Height)? FixedCanvasSize { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public string? Style { get; set; }
+
+    [Parameter]
+    public long MaxUploadSizeBytes { get; set; } = 128 * 1024 * 1024;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _cts = new CancellationTokenSource();
+        var options = new ViewerOptions
+        {
+            InitialModelUrls = InitialModelUrls?.ToArray() ?? Array.Empty<string>(),
+            Theme = Theme,
+            FixedCanvasSize = FixedCanvasSize
+        };
+
+        _handle = await ViewerService.CreateViewerAsync(_containerId, options, _cts.Token);
+    }
+
+    public async Task LoadUrlsAsync(IEnumerable<string> urls)
+    {
+        var handle = _handle ?? throw new InvalidOperationException("Viewer is not initialized yet.");
+        await ViewerService.LoadUrlsAsync(handle, urls, _cts?.Token ?? CancellationToken.None);
+    }
+
+    public async Task LoadFilesAsync(InputFileChangeEventArgs args)
+    {
+        var handle = _handle ?? throw new InvalidOperationException("Viewer is not initialized yet.");
+        var files = args.GetMultipleFiles().ToArray();
+        await ViewerService.LoadFilesAsync(handle, files, MaxUploadSizeBytes, _cts?.Token ?? CancellationToken.None);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+
+        if (_handle is { } handle)
+        {
+            try
+            {
+                await ViewerService.DisposeViewerAsync(handle, CancellationToken.None);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Host page navigated away; safe to ignore.
+            }
+        }
+
+        _cts?.Dispose();
+    }
+}

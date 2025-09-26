@@ -1,0 +1,46 @@
+@page "/"
+
+<PageTitle>Online3DViewer Blazor</PageTitle>
+
+<div class="viewer-page">
+	<div class="viewer-toolbar">
+		<button type="button" @onclick="LoadSampleAsync">Load Sample Model</button>
+		<InputFile OnChange="OnFilesSelected" multiple />
+	</div>
+
+	<ViewerHost @ref="_viewer"
+				Theme="SelectedTheme"
+				InitialModelUrls="_initialModelUrls"
+				CssClass="viewer-host-container" />
+</div>
+
+@code {
+	private readonly string[] _initialModelUrls =
+	{
+		"https://raw.githubusercontent.com/kovacsv/Online3DViewer/master/test/testfiles/gltf/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"
+	};
+
+	private ViewerHost? _viewer;
+
+	private string SelectedTheme { get; set; } = "dark";
+
+	private async Task LoadSampleAsync()
+	{
+		if (_viewer is null)
+		{
+			return;
+		}
+
+		await _viewer.LoadUrlsAsync(_initialModelUrls);
+	}
+
+	private async Task OnFilesSelected(InputFileChangeEventArgs args)
+	{
+		if (_viewer is null)
+		{
+			return;
+		}
+
+		await _viewer.LoadFilesAsync(args);
+	}
+}
